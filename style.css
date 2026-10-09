@@ -75,6 +75,30 @@ h1 {
     letter-spacing: -.02em
 }
 
+.dot {
+    fill: var(--land);
+    stroke: var(--ink);
+    stroke-width: 1.2;
+    vector-effect: non-scaling-stroke;
+    cursor: pointer
+}
+
+.dot:hover {
+    stroke-width: 2.5
+}
+
+.dot.been {
+    fill: var(--been)
+}
+
+.dot.lived {
+    fill: var(--lived)
+}
+
+.dot.want {
+    fill: var(--want)
+}
+
 .sub {
     color: var(--mute);
     margin-top: 6px
