@@ -15,16 +15,130 @@ const paths = g.selectAll("path").data(feats).join("path")
     .on("mouseenter", (e, d) => hint(d.properties.name))
     .on("mouseleave", () => hint());
 
+// Dots for countries too small to see or tap
+const SMALL_AREA = 8; // in map pixels² (raise it to get more dots, lower it to get fewer)
+const small = feats.filter(f => path.area(f) < SMALL_AREA);
+const dots = g.append("g").selectAll("circle").data(small).join("circle")
+    .attr("cx", d => path.centroid(d)[0])
+    .attr("cy", d => path.centroid(d)[1])
+    .attr("r", 4)
+    .on("click", (e, d) => toggle(d.properties.name))
+    .on("mouseenter", (e, d) => hint(d.properties.name))
+    .on("mouseleave", () => hint());
+render();
+
+// ---------- City pins ----------
+const CITY_KEY = "world-map-cities-v1";
+let cities = [];
+try { cities = JSON.parse(localStorage.getItem(CITY_KEY) || "[]"); } catch (e) { cities = []; }
+let lastResults = [];
+const PIN = "M0,0 C-3,-5 -7,-8.5 -7,-13 A7,7 0 1 1 7,-13 C7,-8.5 3,-5 0,0 Z";
+const pinLayer = g.append("g");
+
+function saveCities() { try { localStorage.setItem(CITY_KEY, JSON.stringify(cities)); } catch (e) { } }
+
+function placePins(k) {
+    pinLayer.selectAll("g.pin").attr("transform", d => {
+        const [x, y] = proj([d.lon, d.lat]);
+        return `translate(${x},${y}) scale(${1 / k})`;
+    });
+}
+
+function renderPins() {
+    const sel = pinLayer.selectAll("g.pin").data(cities, d => d.id);
+    const enter = sel.enter().append("g").attr("class", "pin");
+    enter.append("path").attr("d", PIN);
+    enter.append("circle").attr("cy", -13).attr("r", 2.5);
+    enter.on("mouseenter", (e, d) => hint(d.name + (d.country ? ", " + d.country : "") + " · click to remove"))
+        .on("mouseleave", () => hint())
+        .on("click", (e, d) => {
+            cities = cities.filter(c => c.id !== d.id);
+            updateCities();
+            hint();
+        });
+    sel.exit().remove();
+    placePins(d3.zoomTransform(svg.node()).k);
+}
+
+function updateCities() { saveCities(); renderPins(); render(); }
+
+function addCity(c) {
+    if (!cities.some(x => x.id === c.id)) {
+        cities.push({ id: c.id, name: c.name, country: c.country || "", lat: c.latitude, lon: c.longitude });
+        updateCities();
+    }
+    cityInput.value = "";
+    cityList.hidden = true;
+    const [x, y] = proj([c.longitude, c.latitude]);
+    const t = zoom.constrain()(
+        d3.zoomIdentity.translate(480, 250).scale(6).translate(-x, -y),
+        [[0, 0], [960, 500]], [[0, 0], [960, 500]]
+    );
+    svg.transition().duration(600).call(zoom.transform, t);
+}
+
+const cityInput = document.getElementById("city");
+const cityList = document.getElementById("city-results");
+let cityTimer;
+
+function showResults(res) {
+    lastResults = res;
+    cityList.innerHTML = "";
+    if (!res.length) {
+        const li = document.createElement("li");
+        li.className = "none";
+        li.textContent = "No cities found";
+        cityList.append(li);
+    }
+    res.forEach(c => {
+        const li = document.createElement("li");
+        const b = document.createElement("b");
+        b.textContent = c.name;
+        const s = document.createElement("span");
+        s.textContent = [c.admin1, c.country].filter(Boolean).join(", ");
+        li.append(b, s);
+        li.onclick = () => addCity(c);
+        cityList.append(li);
+    });
+    cityList.hidden = false;
+}
+
+async function searchCities(q) {
+    try {
+        const r = await fetch("https://geocoding-api.open-meteo.com/v1/search?count=6&language=en&format=json&name=" + encodeURIComponent(q));
+        const data = await r.json();
+        showResults(data.results || []);
+    } catch (e) {
+        lastResults = [];
+        cityList.innerHTML = '<li class="none">City search needs an internet connection</li>';
+        cityList.hidden = false;
+    }
+}
+
+cityInput.addEventListener("input", () => {
+    clearTimeout(cityTimer);
+    const q = cityInput.value.trim();
+    if (q.length < 2) { cityList.hidden = true; return; }
+    cityTimer = setTimeout(() => searchCities(q), 300);
+});
+cityInput.addEventListener("keydown", e => {
+    if (e.key === "Enter" && lastResults.length) addCity(lastResults[0]);
+});
+document.addEventListener("click", e => {
+    if (!e.target.closest(".city-search")) cityList.hidden = true;
+});
+
 const zoom = d3.zoom()
     .scaleExtent([1, 40])
     .extent([[0, 0], [960, 500]])
     .translateExtent([[0, 0], [960, 500]])
     .on("zoom", e => {
-        g.attr("transform", e.transform);
-        dots.attr("r", 4 / e.transform.k)
-            .style("opacity", e.transform.k > 12 ? 0 : 1)
-            .style("pointer-events", e.transform.k > 12 ? "none" : "all");
-    });
+    g.attr("transform", e.transform);
+    placePins(e.transform.k);
+    dots.attr("r", 4 / e.transform.k)
+        .style("opacity", e.transform.k > 12 ? 0 : 1)
+        .style("pointer-events", e.transform.k > 12 ? "none" : "all");
+});
 
 const svg = d3.select("#svg").call(zoom);
 
@@ -44,7 +158,7 @@ function render() {
     dots.attr("class", d => "dot " + (state[d.properties.name] || ""));
     const n = { been: 0, lived: 0, want: 0 };
     Object.values(state).forEach(v => n[v]++);
-    document.getElementById("total").textContent = (n.been + n.lived) + " of " + feats.length + " countries and territories visited";
+    document.getElementById("total").textContent = (n.been + n.lived) + " of " + feats.length + " countries and territories visited" + (cities.length ? " · " + cities.length + (cities.length === 1 ? " city" : " cities") : "");
     document.getElementById("modes").innerHTML = Object.keys(MODES).map(k =>
         `<button data-m="${k}" aria-pressed="${k === mode}"><i style="background:var(--${k})"></i>${MODES[k]} <b>${n[k]}</b></button>`).join("");
     document.querySelectorAll("#modes button").forEach(b => b.onclick = () => { mode = b.dataset.m; render(); });
@@ -63,17 +177,7 @@ document.getElementById("q").addEventListener("change", e => {
 const rs = document.getElementById("reset"); let armed = false;
 rs.onclick = () => {
     if (!armed) { armed = true; rs.textContent = "Tap again to clear"; setTimeout(() => { armed = false; rs.textContent = "Clear all"; }, 3000); return; }
-    state = {}; save(); render(); armed = false; rs.textContent = "Clear all";
+    state = {}; cities = []; save(); saveCities(); renderPins(); render(); armed = false; rs.textContent = "Clear all";
 };
 
-// Dots for countries too small to see or tap
-const SMALL_AREA = 8; // in map pixels² (raise it to get more dots, lower it to get fewer)
-const small = feats.filter(f => path.area(f) < SMALL_AREA);
-const dots = g.append("g").selectAll("circle").data(small).join("circle")
-    .attr("cx", d => path.centroid(d)[0])
-    .attr("cy", d => path.centroid(d)[1])
-    .attr("r", 4)
-    .on("click", (e, d) => toggle(d.properties.name))
-    .on("mouseenter", (e, d) => hint(d.properties.name))
-    .on("mouseleave", () => hint());
-render();
+renderPins();
