@@ -18,10 +18,11 @@ const paths = g.selectAll("path").data(feats).join("path")
 const zoom = d3.zoom()
     .scaleExtent([1, 40])
     .extent([[0, 0], [960, 500]])
-    .translateExtent([[0, 0], [960, 500]])
+    .translateExtent([[-100, -60], [1060, 560]])
     .on("zoom", e => g.attr("transform", e.transform));
 
 const svg = d3.select("#svg").call(zoom);
+
 d3.select("#zi").on("click", () => svg.transition().call(zoom.scaleBy, 1.8));
 d3.select("#zo").on("click", () => svg.transition().call(zoom.scaleBy, 1 / 1.8));
 
