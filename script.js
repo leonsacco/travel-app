@@ -18,8 +18,13 @@ const paths = g.selectAll("path").data(feats).join("path")
 const zoom = d3.zoom()
     .scaleExtent([1, 40])
     .extent([[0, 0], [960, 500]])
-    .translateExtent([[-100, -60], [1060, 560]])
-    .on("zoom", e => g.attr("transform", e.transform));
+    .translateExtent([[0, 0], [960, 500]])
+    .on("zoom", e => {
+        g.attr("transform", e.transform);
+        dots.attr("r", 4 / e.transform.k)
+            .style("opacity", e.transform.k > 12 ? 0 : 1)
+            .style("pointer-events", e.transform.k > 12 ? "none" : "all");
+    });
 
 const svg = d3.select("#svg").call(zoom);
 
@@ -36,6 +41,7 @@ function toggle(name) {
 }
 function render() {
     paths.attr("class", d => state[d.properties.name] || null);
+    dots.attr("class", d => "dot " + (state[d.properties.name] || ""));
     const n = { been: 0, lived: 0, want: 0 };
     Object.values(state).forEach(v => n[v]++);
     document.getElementById("total").textContent = (n.been + n.lived) + " of " + feats.length + " countries and territories visited";
@@ -59,4 +65,15 @@ rs.onclick = () => {
     if (!armed) { armed = true; rs.textContent = "Tap again to clear"; setTimeout(() => { armed = false; rs.textContent = "Clear all"; }, 3000); return; }
     state = {}; save(); render(); armed = false; rs.textContent = "Clear all";
 };
+
+// Dots for countries too small to see or tap
+const SMALL_AREA = 8; // in map pixels² (raise it to get more dots, lower it to get fewer)
+const small = feats.filter(f => path.area(f) < SMALL_AREA);
+const dots = g.append("g").selectAll("circle").data(small).join("circle")
+    .attr("cx", d => path.centroid(d)[0])
+    .attr("cy", d => path.centroid(d)[1])
+    .attr("r", 4)
+    .on("click", (e, d) => toggle(d.properties.name))
+    .on("mouseenter", (e, d) => hint(d.properties.name))
+    .on("mouseleave", () => hint());
 render();
