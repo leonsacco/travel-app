@@ -99,6 +99,69 @@ h1 {
     fill: var(--want)
 }
 
+.city-search {
+    position: relative
+}
+
+#city-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin: 6px 0 0;
+    padding: 4px;
+    min-width: 280px;
+    list-style: none;
+    z-index: 20;
+    background: var(--card);
+    border: 1px solid var(--edge);
+    border-radius: 14px
+}
+
+#city-results li {
+    padding: 8px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column
+}
+
+#city-results li:hover {
+    background: var(--bg)
+}
+
+#city-results li span {
+    color: var(--mute);
+    font-size: 13px
+}
+
+#city-results li.none {
+    cursor: default;
+    color: var(--mute)
+}
+
+#city-results li.none:hover {
+    background: none
+}
+
+.pin {
+    cursor: pointer
+}
+
+.pin path {
+    fill: #e5546f;
+    stroke: #fff;
+    stroke-width: 1.2;
+    vector-effect: non-scaling-stroke
+}
+
+.pin circle {
+    fill: #fff
+}
+
+.pin:hover path {
+    fill: #c93a56
+}
+
 .sub {
     color: var(--mute);
     margin-top: 6px
